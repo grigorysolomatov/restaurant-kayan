@@ -27,7 +27,7 @@
   let feedback = '';
   let feedbackKind = ''; // 'ok' | 'bad'
 
-  const PRICE_PER_KG = 10;   // market pays $10 per kg
+  const PRICE_PER_KG = 1;    // market pays $1 per kg
 
   // current fish in the pond
   let armed = false;         // fish hooked, fight is on
@@ -258,7 +258,7 @@
   }
 
   // ---- preload all art before showing the game ----
-  const ASSETS = ['pond.webp', 'shark.webp', 'fisherman.webp', 'fish-marked.webp'];
+  const ASSETS = ['pond.webp', 'shark.webp', 'fisherman.webp', 'fish-marked.webp', '6-7.webp'];
   let ready = false;
   let loadedCount = 0;
 
@@ -408,6 +408,7 @@
     {#if showSixSeven}
       <div class="six-seven">
         <span class="ss-digit six">6</span>
+        <img class="ss-face" src="{BASE}assets/6-7.webp" alt="six seven" />
         <span class="ss-digit seven">7</span>
       </div>
     {/if}
@@ -549,6 +550,15 @@
   }
   .six { color: #ffb800; animation: ssSix .5s ease-in-out infinite alternate; }
   .seven { color: #3aa0ff; animation: ssSeven .5s ease-in-out infinite alternate; }
+  .ss-face {
+    height: 220px; width: auto;
+    filter: drop-shadow(0 10px 18px rgba(0, 0, 0, .45));
+    animation: ssFaceBounce .5s ease-in-out infinite alternate;
+  }
+  @keyframes ssFaceBounce {
+    from { transform: translateY(30px) scale(.96) rotate(-3deg); }
+    to { transform: translateY(-30px) scale(1.04) rotate(3deg); }
+  }
   @keyframes ssSix { from { transform: translateY(-46px) rotate(-4deg); } to { transform: translateY(46px) rotate(4deg); } }
   @keyframes ssSeven { from { transform: translateY(46px) rotate(4deg); } to { transform: translateY(-46px) rotate(-4deg); } }
   @keyframes ssFade { 0% { opacity: 0; } 12% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
