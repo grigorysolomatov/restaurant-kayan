@@ -3,19 +3,21 @@
 
   const BASE = import.meta.env.BASE_URL; // e.g. /restaurant-kayan/
 
-  // ---- world scaling (keeps the whole scene visible on any device) ----
-  const WORLD_W = 1280;
-  const WORLD_H = 760;
-  let scale = 1;
-  function fit() {
-    scale = Math.min(window.innerWidth / WORLD_W, window.innerHeight / WORLD_H);
-  }
+  // ---- responsive world: landscape vs portrait, scaled to fit any screen ----
+  let winW = window.innerWidth;
+  let winH = window.innerHeight;
+  function onResize() { winW = window.innerWidth; winH = window.innerHeight; }
 
-  // ---- fixed world positions ----
-  const POND_X = 360;    // fisherman idle spot (by the pond)
-  const MARKET_X = 720;  // where the fisherman stands to sell
-  const BURST_X = 880;   // coin fireworks origin
-  const BURST_Y = 320;
+  $: portrait = winH > winW * 1.05;
+  $: WORLD_W = portrait ? 760 : 1280;
+  $: WORLD_H = portrait ? 1200 : 760;
+  $: scale = Math.min(winW / WORLD_W, winH / WORLD_H);
+
+  // world positions differ per orientation
+  $: POND_X = portrait ? 240 : 360;    // fisherman idle spot (by the pond)
+  $: MARKET_X = portrait ? 400 : 720;  // where he stands to sell
+  $: BURST_X = portrait ? 560 : 880;   // coin fireworks origin
+  $: BURST_Y = portrait ? 330 : 320;
 
   // ---- game state ----
   let money = 0;
@@ -47,10 +49,12 @@
 
   // fisherman state machine: idle -> carrying -> selling -> returning -> idle
   let fisherState = 'idle';
-  let fishermanX = POND_X;
+  let fishermanX = 360;
   let walking = false;
   let carryFish = null;      // {size}
   $: busy = fisherState !== 'idle';
+  // keep the fisherman parked at the pond (and re-adjust when orientation flips)
+  $: if (fisherState === 'idle') fishermanX = POND_X;
 
   // coin fireworks + money popup
   let coins = [];
@@ -278,11 +282,15 @@
   }
 
   onMount(() => {
-    fit();
+    onResize();
     newProblem();
-    window.addEventListener('resize', fit);
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
     preload().then(() => { ready = true; focusInput(); });
-    return () => window.removeEventListener('resize', fit);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+    };
   });
 </script>
 
@@ -299,6 +307,7 @@
   <div
     class="world"
     class:hidden={!ready}
+    class:portrait
     style="width:{WORLD_W}px;height:{WORLD_H}px;transform:translate(-50%,-50%) scale({scale});"
   >
     <!-- sky & scenery -->
@@ -645,5 +654,49 @@
     100% { transform: translateX(-50%) translateY(-70px) scale(1); opacity: 0; }
   }
 
-  @media (max-width: 640px) { .banner { font-size: 34px; } }
+  /* =====================================================================
+     PORTRAIT LAYOUT (phones / tablets held upright)
+     World becomes 760 x 1200: pond + market in a top scene band,
+     a big thumb-friendly math panel across the bottom.
+     ===================================================================== */
+  .world.portrait .banner { top: 16px; font-size: 30px; }
+  .world.portrait .hud { top: 64px; left: 50%; transform: translateX(-50%); gap: 10px; }
+  .world.portrait .chip { font-size: 22px; padding: 8px 18px; }
+
+  .world.portrait .sun { right: 40px; top: 70px; }
+  .world.portrait .c1 { left: 90px; top: 90px; }
+  .world.portrait .c2 { left: 430px; top: 150px; }
+  .world.portrait .c3 { left: 250px; top: 60px; }
+  .world.portrait .h1 { width: 620px; height: 300px; left: -120px; top: 460px; }
+  .world.portrait .h2 { width: 700px; height: 300px; left: 260px; top: 500px; }
+  .world.portrait .sky { height: 42%; }
+  .world.portrait .ground { height: 60%; }
+  .world.portrait .path { bottom: 470px; left: 30px; right: 30px; height: 90px; }
+
+  /* pond top-left */
+  .world.portrait .pond-area { left: 16px; top: 200px; bottom: auto; width: 370px; height: 300px; }
+  /* market top-right */
+  .world.portrait .market { right: 14px; top: 250px; bottom: auto; width: 330px; }
+  /* fisherman stands in the top band and walks across it */
+  .world.portrait .fisher { bottom: auto; top: 232px; height: 300px; }
+
+  /* big math panel across the bottom, easy to reach with thumbs */
+  .world.portrait .math-post { bottom: 90px; width: 680px; }
+  .world.portrait .board { border-width: 10px; padding: 20px 22px 18px; }
+  .world.portrait .board-title { font-size: 22px; }
+  .world.portrait .equation { font-size: 64px; margin: 10px 0 18px; }
+  .world.portrait .entry input { font-size: 40px; padding: 14px; border-width: 4px; }
+  .world.portrait .go { font-size: 30px; padding: 14px 26px; }
+  .world.portrait .feedback { font-size: 20px; min-height: 26px; }
+
+  /* fight bar + banners sized for the narrower world */
+  .world.portrait .fight-ui { width: 320px; }
+  .world.portrait .fight-label { font-size: 18px; }
+  .world.portrait .fight-bar { height: 24px; }
+  .world.portrait .caught-banner { font-size: 34px; top: 20%; }
+  .world.portrait .six-seven { gap: 16px; }
+  .world.portrait .ss-digit { font-size: 150px; -webkit-text-stroke-width: 4px; }
+  .world.portrait .ss-face { height: 150px; }
+
+  @media (max-width: 640px) { .world:not(.portrait) .banner { font-size: 34px; } }
 </style>
