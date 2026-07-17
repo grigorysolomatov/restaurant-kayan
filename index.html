@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Restaurant Kayan — Fishing Math</title>
+<style>
+  :root {
+    --green-bg: #3f7d4e;
+    --green-deep: #2f5f3b;
+    --green-panel: #eaf6ec;
+    --wood: #7a5230;
+    --wood-dark: #5c3d22;
+    --gold: #f4c430;
+    --ink: #24402a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+    min-height: 100vh;
+    color: var(--ink);
+    background:
+      radial-gradient(1200px 600px at 50% -10%, #5aa06a 0%, transparent 60%),
+      linear-gradient(160deg, #4c8a5c 0%, var(--green-bg) 45%, var(--green-deep) 100%);
+    overflow-x: hidden;
+  }
+
+  header {
+    text-align: center;
+    padding: 18px 12px 8px;
+  }
+  header h1 {
+    font-size: clamp(1.6rem, 3.5vw, 2.6rem);
+    color: #fff;
+    letter-spacing: 1px;
+    text-shadow: 0 2px 0 rgba(0,0,0,.25), 0 6px 18px rgba(0,0,0,.25);
+  }
+  header p { color: #e6f4e9; opacity: .9; margin-top: 2px; font-size: .95rem; }
+
+  /* Money bar */
+  .hud {
+    display: flex;
+    justify-content: center;
+    gap: 14px;
+    margin: 10px auto 4px;
+    flex-wrap: wrap;
+  }
+  .hud .chip {
+    background: rgba(255,255,255,.15);
+    border: 1px solid rgba(255,255,255,.35);
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 999px;
+    font-weight: bold;
+    backdrop-filter: blur(4px);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .hud .chip b { color: var(--gold); font-size: 1.15rem; }
+
+  main {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr 1.1fr;
+    gap: 18px;
+    max-width: 1400px;
+    margin: 12px auto;
+    padding: 0 18px 40px;
+    align-items: stretch;
+  }
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; }
+  }
+
+  .col {
+    background: rgba(255,255,255,.10);
+    border: 1px solid rgba(255,255,255,.25);
+    border-radius: 18px;
+    padding: 16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.18);
+    display: flex;
+    flex-direction: column;
+  }
+  .col h2 {
+    color: #fff;
+    text-align: center;
+    margin-bottom: 12px;
+    font-size: 1.15rem;
+    letter-spacing: .5px;
+    text-shadow: 0 2px 6px rgba(0,0,0,.25);
+  }
+
+  /* Pond */
+  .pond-wrap {
+    position: relative;
+    flex: 1;
+    border-radius: 14px;
+    overflow: hidden;
+    min-height: 340px;
+    background: #16324a;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pond-wrap img.pond {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .fisherman {
+    position: absolute;
+    left: 6px; bottom: 0;
+    height: 62%;
+    filter: drop-shadow(0 6px 10px rgba(0,0,0,.4));
+    pointer-events: none;
+    z-index: 3;
+  }
+  .shark {
+    position: absolute;
+    height: 68px;
+    top: 40%; left: 40%;
+    transform: translate(-50%, -50%);
+    cursor: pointer;
+    filter: drop-shadow(0 6px 8px rgba(0,0,0,.45));
+    transition: transform .08s ease;
+    z-index: 2;
+    user-select: none;
+  }
+  .shark:active { transform: translate(-50%, -50%) scale(.9); }
+  .shark.flip { transform: translate(-50%, -50%) scaleX(-1); }
+  .pond-hint {
+    position: absolute; bottom: 8px; left: 0; right: 0;
+    text-align: center; color: #fff; font-size: .85rem;
+    text-shadow: 0 1px 4px #000; z-index: 4; pointer-events: none;
+  }
+  .pond-locked {
+    position: absolute; inset: 0; z-index: 5;
+    background: rgba(10,25,20,.55);
+    display: flex; align-items: center; justify-content: center;
+    text-align: center; color: #fff; padding: 20px;
+    backdrop-filter: blur(2px);
+  }
+  .pond-locked.hidden { display: none; }
+  .pond-locked span { font-size: 1.05rem; line-height: 1.5; }
+
+  /* Math panel */
+  .math-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+  }
+  .problem {
+    background: var(--green-panel);
+    border-radius: 16px;
+    padding: 26px 30px;
+    width: 100%;
+    text-align: center;
+    box-shadow: inset 0 2px 6px rgba(0,0,0,.08);
+  }
+  .problem .q {
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    font-weight: bold;
+    color: var(--ink);
+  }
+  .answer-row {
+    display: flex; gap: 10px; width: 100%; max-width: 320px;
+  }
+  #answer {
+    flex: 1;
+    font-size: 1.6rem;
+    text-align: center;
+    padding: 12px;
+    border: 3px solid var(--green-deep);
+    border-radius: 12px;
+    outline: none;
+    background: #fff;
+    color: var(--ink);
+  }
+  #answer:focus { border-color: var(--gold); }
+  .btn {
+    border: none;
+    border-radius: 12px;
+    padding: 12px 20px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    cursor: pointer;
+    background: linear-gradient(180deg, #ffd451, var(--gold));
+    color: #4a3300;
+    box-shadow: 0 4px 0 #b8901f;
+    transition: transform .05s, box-shadow .05s;
+  }
+  .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #b8901f; }
+  .btn.wide { width: 100%; max-width: 320px; }
+  .feedback {
+    min-height: 26px;
+    font-weight: bold;
+    font-size: 1.05rem;
+    text-align: center;
+    color: #fff;
+    text-shadow: 0 1px 4px rgba(0,0,0,.3);
+  }
+  .feedback.ok { color: #d6ffdd; }
+  .feedback.bad { color: #ffd6d6; }
+
+  /* Market */
+  .market-wrap {
+    position: relative;
+    border-radius: 14px;
+    overflow: hidden;
+    background: #cfe0d4;
+    display: flex; align-items: center; justify-content: center;
+    padding: 8px;
+    min-height: 200px;
+  }
+  .market-wrap img { width: 100%; display: block; border-radius: 10px; }
+  .catch-list {
+    margin-top: 12px;
+    background: rgba(255,255,255,.9);
+    border-radius: 12px;
+    padding: 12px;
+    flex: 1;
+    overflow-y: auto;
+    max-height: 200px;
+  }
+  .catch-list h3 { font-size: .95rem; margin-bottom: 8px; color: var(--ink); }
+  .catch-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; padding: 6px 8px; border-radius: 8px;
+    background: #eef7f0; margin-bottom: 6px;
+    animation: pop .3s ease;
+  }
+  .catch-row img { height: 26px; }
+  .catch-row .val { font-weight: bold; color: #2f7d3a; }
+  .empty-note { color: #789; font-size: .9rem; font-style: italic; }
+  .sell-btn {
+    margin-top: 10px;
+    width: 100%;
+  }
+  @keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+  /* floating +$ */
+  .float-money {
+    position: fixed;
+    font-weight: bold; color: var(--gold);
+    font-size: 1.4rem; pointer-events: none;
+    text-shadow: 0 2px 4px rgba(0,0,0,.4);
+    z-index: 50;
+    animation: floatUp 1s ease forwards;
+  }
+  @keyframes floatUp {
+    to { transform: translateY(-60px); opacity: 0; }
+  }
+
+  footer { text-align: center; color: #dcefe0; padding: 8px 0 24px; font-size: .8rem; opacity: .8; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>🎣 Restaurant Kayan — Fishing Math</h1>
+    <p>Solve the math, catch the fish, sell it at the restaurant!</p>
+  </header>
+
+  <div class="hud">
+    <div class="chip">💰 Money: <b id="money">$0</b></div>
+    <div class="chip">🐟 Caught: <b id="count">0</b></div>
+    <div class="chip">🔥 Streak: <b id="streak">0</b></div>
+  </div>
+
+  <main>
+    <!-- LEFT: Pond -->
+    <section class="col">
+      <h2>🌊 The Pond</h2>
+      <div class="pond-wrap">
+        <img class="pond" src="assets/pond.png" alt="Pond" />
+        <img class="fisherman" src="assets/fisherman.png" alt="Fisherman" />
+        <img class="shark" id="shark" src="assets/shark.png" alt="Fish" />
+        <div class="pond-hint" id="pondHint"></div>
+        <div class="pond-locked" id="pondLocked">
+          <span>🔒 Solve the math problem<br>to unlock a catch!</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- MIDDLE: Math -->
+    <section class="col">
+      <h2>➗ Math Panel</h2>
+      <div class="math-panel">
+        <div class="problem">
+          <div class="q" id="question">2 + 2 = ?</div>
+        </div>
+        <div class="answer-row">
+          <input id="answer" type="number" inputmode="numeric" placeholder="?" autocomplete="off" />
+          <button class="btn" id="checkBtn">Check</button>
+        </div>
+        <div class="feedback" id="feedback"></div>
+      </div>
+    </section>
+
+    <!-- RIGHT: Market -->
+    <section class="col">
+      <h2>🏪 The Restaurant</h2>
+      <div class="market-wrap">
+        <img src="assets/fish-marked.png" alt="Restaurant Kayan" />
+      </div>
+      <div class="catch-list">
+        <h3>🧺 Fresh catches ready to sell</h3>
+        <div id="catches"><p class="empty-note">No fish yet — go catch one!</p></div>
+      </div>
+      <button class="btn sell-btn" id="sellBtn" disabled>Sell all 🐟 → 💰</button>
+    </section>
+  </main>
+
+  <footer>Restaurant Kayan · a little math &amp; fishing game</footer>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+
+  let money = 0;
+  let count = 0;
+  let streak = 0;
+  let canCatch = false;
+  let answer = 0;
+  const basket = []; // {value}
+
+  const shark = $("shark");
+  const pondLocked = $("pondLocked");
+  const pondHint = $("pondHint");
+
+  function rand(n) { return Math.floor(Math.random() * n); }
+
+  function newProblem() {
+    const ops = ["+", "-", "×"];
+    const op = ops[rand(ops.length)];
+    let a, b, res;
+    if (op === "+") { a = rand(12) + 1; b = rand(12) + 1; res = a + b; }
+    else if (op === "-") { a = rand(12) + 5; b = rand(a); res = a - b; }
+    else { a = rand(9) + 2; b = rand(9) + 2; res = a * b; }
+    answer = res;
+    $("question").textContent = `${a} ${op} ${b} = ?`;
+    $("answer").value = "";
+    $("answer").focus();
+  }
+
+  function setFeedback(msg, cls) {
+    const f = $("feedback");
+    f.textContent = msg;
+    f.className = "feedback " + (cls || "");
+  }
+
+  function unlockCatch() {
+    canCatch = true;
+    pondLocked.classList.add("hidden");
+    pondHint.textContent = "🎯 Click the fish to catch it!";
+    moveShark();
+  }
+
+  function lockCatch() {
+    canCatch = false;
+    pondLocked.classList.remove("hidden");
+    pondHint.textContent = "";
+  }
+
+  function moveShark() {
+    // random position within the water area
+    const top = 25 + rand(45);   // 25%..70%
+    const left = 25 + rand(50);  // 25%..75%
+    shark.style.top = top + "%";
+    shark.style.left = left + "%";
+    shark.classList.toggle("flip", Math.random() < 0.5);
+  }
+
+  function checkAnswer() {
+    if (canCatch) return; // must catch first
+    const val = parseInt($("answer").value, 10);
+    if (isNaN(val)) { setFeedback("Type a number first!", "bad"); return; }
+    if (val === answer) {
+      streak++;
+      setFeedback("✅ Correct! Go catch a fish!", "ok");
+      $("streak").textContent = streak;
+      unlockCatch();
+    } else {
+      streak = 0;
+      $("streak").textContent = streak;
+      setFeedback("❌ Not quite — try the next one!", "bad");
+      newProblem();
+    }
+  }
+
+  function fishValue() {
+    // base value grows with streak
+    return 5 + rand(8) + streak * 2;
+  }
+
+  function floatMoney(x, y, text) {
+    const el = document.createElement("div");
+    el.className = "float-money";
+    el.textContent = text;
+    el.style.left = x + "px";
+    el.style.top = y + "px";
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 1000);
+  }
+
+  function catchFish(ev) {
+    if (!canCatch) return;
+    canCatch = false;
+    count++;
+    $("count").textContent = count;
+
+    const value = fishValue();
+    basket.push({ value });
+
+    const rect = shark.getBoundingClientRect();
+    floatMoney(rect.left + rect.width / 2, rect.top, "🐟 Caught!");
+
+    renderBasket();
+    lockCatch();
+    setFeedback("🐟 Nice catch! Sell it, then solve another.", "ok");
+    newProblem();
+  }
+
+  function renderBasket() {
+    const box = $("catches");
+    if (basket.length === 0) {
+      box.innerHTML = '<p class="empty-note">No fish yet — go catch one!</p>';
+      $("sellBtn").disabled = true;
+      return;
+    }
+    box.innerHTML = "";
+    basket.forEach((f, i) => {
+      const row = document.createElement("div");
+      row.className = "catch-row";
+      row.innerHTML = `<span><img src="assets/shark.png" alt="fish"> Fish #${i + 1}</span><span class="val">$${f.value}</span>`;
+      box.appendChild(row);
+    });
+    $("sellBtn").disabled = false;
+  }
+
+  function sellAll(ev) {
+    if (basket.length === 0) return;
+    const total = basket.reduce((s, f) => s + f.value, 0);
+    money += total;
+    $("money").textContent = "$" + money;
+    basket.length = 0;
+    renderBasket();
+
+    const btn = $("sellBtn").getBoundingClientRect();
+    floatMoney(btn.left + btn.width / 2, btn.top, "+$" + total);
+    setFeedback("💰 Sold for $" + total + "! Keep going!", "ok");
+  }
+
+  // wiring
+  $("checkBtn").addEventListener("click", checkAnswer);
+  $("answer").addEventListener("keydown", (e) => { if (e.key === "Enter") checkAnswer(); });
+  shark.addEventListener("click", catchFish);
+  $("sellBtn").addEventListener("click", sellAll);
+
+  // init
+  lockCatch();
+  newProblem();
+  renderBasket();
+})();
+</script>
+</body>
+</html>
