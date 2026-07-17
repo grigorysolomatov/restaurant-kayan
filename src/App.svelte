@@ -27,20 +27,29 @@
   let feedback = '';
   let feedbackKind = ''; // 'ok' | 'bad'
 
+  const PRICE_PER_KG = 10;   // market pays $10 per kg
+
   // current fish in the pond
-  let armed = false;       // fish hooked, ready to be reeled in by tapping
+  let armed = false;         // fish hooked, fight is on
   let biting = false;
-  let fishSize = 1;        // visual scale, from the answer
-  let tapsNeeded = 1;
-  let tapsDone = 0;
-  let fishValue = 0;
-  let hit = false;         // brief shake on each tap
+  let fishScale = 1;         // visual scale in the pond, from the answer/weight
+  let fishWeight = 0;        // kg — equals the puzzle answer
+  let fishValue = 0;         // sale price = weight * PRICE_PER_KG
+  let hit = false;           // brief shake on each tap
+
+  // reel-in tug-of-war
+  let fighting = false;
+  let catchProgress = 50;    // 0 = fish lost, 100 = fish caught; starts at half
+  let drainPerSec = 15;      // how fast the bar drains
+  let tapGain = 15;          // how much each tap adds (smaller for bigger fish)
+  let rafId = null;
+  let lastT = 0;
 
   // fisherman state machine: idle -> carrying -> selling -> returning -> idle
   let fisherState = 'idle';
   let fishermanX = POND_X;
   let walking = false;
-  let carryFish = null;    // {size}
+  let carryFish = null;      // {size}
   $: busy = fisherState !== 'idle';
 
   // coin fireworks + money popup
@@ -48,6 +57,10 @@
   let coinId = 0;
   let showPop = false;
   let popValue = 0;
+
+  // "caught!" weight banner
+  let showCaught = false;
+  let caughtWeight = 0;
 
   let inputEl;
 
@@ -62,13 +75,15 @@
     input = '';
   }
 
-  // The answer decides how big the fish is.
+  // The answer is the fish's weight in kg — it decides size, fight and price.
   function makeFish() {
-    const ans = answer;
-    fishSize = 0.7 + Math.min(ans, 80) / 80 * 1.7;   // ~0.7 .. 2.4
-    tapsNeeded = Math.max(1, Math.round(ans / 9));    // 1 .. ~9 taps
-    tapsDone = 0;
-    fishValue = ans * 2 + streak * 3 + rnd(6);        // big fish pay more
+    const w = answer;
+    const t = Math.min(w, 80) / 80;                 // 0 .. 1 heaviness
+    fishWeight = w;
+    fishScale = 0.6 + t * 2.4;                       // ~0.6 .. 3.0 (clearly varies)
+    drainPerSec = 12 + t * 10;                       // heavier fish pull harder (12..22)
+    tapGain = Math.max(7, 22 - t * 15);              // heavier fish give less per tap (22..7)
+    fishValue = w * PRICE_PER_KG;
   }
 
   function submit() {
@@ -81,8 +96,9 @@
       makeFish();
       armed = true;
       biting = true;
-      const big = fishSize > 1.7 ? ' A big one! 🐟' : '';
-      flash(`Correct!${big} Tap it to reel it in!`, 'ok');
+      const big = fishScale > 2.1 ? ' A whopper! 🐟' : '';
+      flash(`Correct!${big} Tap fast to reel it in!`, 'ok');
+      startFight();
     } else {
       streak = 0;
       flash(`Oops! It was ${answer}. Try this one.`, 'bad');
@@ -101,24 +117,60 @@
     inputEl && inputEl.focus();
   }
 
-  // Each tap chips away at the fish; bigger fish need more taps.
-  function tapFish() {
-    if (!armed) { flash('Solve the math first! 🧮', 'bad'); return; }
-    tapsDone += 1;
-    hit = true;
-    setTimeout(() => (hit = false), 130);
-    if (tapsDone >= tapsNeeded) landFish();
+  // ---- reel-in tug-of-war ----
+  function startFight() {
+    catchProgress = 50;
+    fighting = true;
+    lastT = performance.now();
+    rafId = requestAnimationFrame(fightTick);
   }
 
-  // Fish is out of the water — the fisherman carries it to market.
-  function landFish() {
+  function stopFight() {
+    fighting = false;
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+
+  function fightTick(t) {
+    if (!fighting) return;
+    const dt = Math.min(0.05, (t - lastT) / 1000);
+    lastT = t;
+    catchProgress -= drainPerSec * dt;
+    if (catchProgress <= 0) { catchProgress = 0; loseFish(); return; }
+    if (catchProgress >= 100) { catchProgress = 100; landFish(); return; }
+    rafId = requestAnimationFrame(fightTick);
+  }
+
+  // each tap pulls the fish in a little (less for heavy fish)
+  function tapFish() {
+    if (!armed || !fighting) { if (!armed) flash('Solve the math first! 🧮', 'bad'); return; }
+    catchProgress = Math.min(100, catchProgress + tapGain);
+    hit = true;
+    setTimeout(() => (hit = false), 120);
+    if (catchProgress >= 100) landFish();
+  }
+
+  function loseFish() {
+    stopFight();
     armed = false;
     biting = false;
-    carryFish = { size: fishSize };
+    streak = 0;
+    flash(`The ${fishWeight} kg fish got away! 🌊`, 'bad');
+    setTimeout(() => { newProblem(); focusInput(); }, 700);
+  }
+
+  // Fish is landed — the fisherman carries it to market.
+  function landFish() {
+    stopFight();
+    armed = false;
+    biting = false;
+    carryFish = { size: fishScale };
+    caughtWeight = fishWeight;
+    popCaught();
     fisherState = 'carrying';
     walking = true;
     fishermanX = MARKET_X;
-    flash('Nice catch! Off to the market… 🚶', 'ok');
+    flash(`Caught a ${fishWeight} kg fish! Off to market… 🚶`, 'ok');
     setTimeout(sellAtMarket, 1250);
   }
 
@@ -129,7 +181,7 @@
     caught += 1;
     spawnCoins();
     popMoney(fishValue);
-    flash(`Sold at Restaurant Kayan for $${fishValue}! 💰`, 'ok');
+    flash(`Sold ${fishWeight} kg for $${fishValue} ($${PRICE_PER_KG}/kg)! 💰`, 'ok');
     setTimeout(returnHome, 1050);
   }
 
@@ -169,6 +221,12 @@
     // retrigger the mount animation
     requestAnimationFrame(() => { showPop = true; });
     setTimeout(() => (showPop = false), 1300);
+  }
+
+  function popCaught() {
+    showCaught = false;
+    requestAnimationFrame(() => { showCaught = true; });
+    setTimeout(() => (showCaught = false), 1400);
   }
 
   function onKey(e) {
@@ -245,7 +303,7 @@
       {#if !busy}
         <div
           class="shark {armed ? 'armed' : ''} {biting ? 'biting' : ''} {hit ? 'hit' : ''}"
-          style="width:{130 * (armed ? fishSize : 1)}px;"
+          style="width:{120 * (armed ? fishScale : 1)}px;"
           on:click={tapFish}
           on:keydown={(e) => e.key === 'Enter' && tapFish()}
           role="button"
@@ -256,11 +314,18 @@
           {#if armed}<div class="ring"></div>{/if}
         </div>
         {#if armed}
-          <div class="catch-ui">
-            <div class="catch-bar"><span style="width:{(tapsDone / tapsNeeded) * 100}%"></span></div>
-            <div class="tap-hint">Tap! {tapsNeeded - tapsDone} to go</div>
+          <div class="fight-ui">
+            <div class="fight-label">🐟 {fishWeight} kg — tap to reel it in!</div>
+            <div class="fight-bar">
+              <span
+                style="width:{catchProgress}%; background:hsl({Math.round(catchProgress * 1.2)}, 85%, 45%);"
+              ></span>
+            </div>
           </div>
         {/if}
+      {/if}
+      {#if showCaught}
+        <div class="caught-banner">🎣 Caught a {caughtWeight} kg fish!</div>
       {/if}
     </div>
 
@@ -268,7 +333,7 @@
     <div class="fisher {walking ? 'walking' : ''}" style="left:{fishermanX}px;">
       <img class="fisher-img" src="{BASE}assets/fisherman.png" alt="Fisherman" />
       {#if carryFish}
-        <div class="carry" style="width:{110 * carryFish.size}px;">
+        <div class="carry" style="width:{80 * Math.min(carryFish.size, 2.4)}px;">
           <img src="{BASE}assets/shark.png" alt="Caught fish" />
         </div>
       {/if}
@@ -414,15 +479,29 @@
   .shark:not(.armed) img { opacity: .82; }
   .shark.hit { animation: shake .13s linear; }
   .ring { position: absolute; inset: -14px; border: 4px solid #ffe27a; border-radius: 50%; animation: pulse 1.1s ease-out infinite; }
-  .catch-ui { position: absolute; left: 46%; top: 6%; transform: translateX(-50%); text-align: center; z-index: 7; width: 180px; }
-  .catch-bar {
-    height: 12px; border-radius: 999px; background: rgba(0, 0, 0, .35);
-    overflow: hidden; border: 2px solid rgba(255, 255, 255, .7);
+  .fight-ui { position: absolute; left: 50%; top: -6px; transform: translateX(-50%); text-align: center; z-index: 9; width: 300px; }
+  .fight-label {
+    display: inline-block; margin-bottom: 6px; background: rgba(0, 0, 0, .6); color: #fff;
+    padding: 4px 14px; border-radius: 999px; font-size: 16px; font-weight: bold;
+    animation: bob 1s ease-in-out infinite; white-space: nowrap;
   }
-  .catch-bar span { display: block; height: 100%; background: linear-gradient(90deg, #ffe27a, #ffb800); transition: width .1s ease; }
-  .tap-hint {
-    margin-top: 5px; background: rgba(0, 0, 0, .55); color: #fff; padding: 3px 12px;
-    border-radius: 999px; font-size: 15px; display: inline-block; animation: bob 1s ease-in-out infinite;
+  .fight-bar {
+    height: 20px; border-radius: 999px; background: rgba(0, 0, 0, .4);
+    overflow: hidden; border: 3px solid rgba(255, 255, 255, .85); box-shadow: 0 4px 10px rgba(0, 0, 0, .3);
+  }
+  .fight-bar span { display: block; height: 100%; border-radius: 999px; transition: width .08s linear, background .12s linear; }
+  .caught-banner {
+    position: absolute; left: 50%; top: 30%; transform: translateX(-50%);
+    background: linear-gradient(180deg, #fff6c2, #ffd451); color: #5a3d00;
+    border: 4px solid #fff; border-radius: 16px; padding: 10px 20px;
+    font-size: 26px; font-weight: bold; white-space: nowrap; z-index: 30;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, .35); animation: caughtPop 1.4s ease-out forwards;
+  }
+  @keyframes caughtPop {
+    0% { transform: translateX(-50%) scale(.5); opacity: 0; }
+    20% { transform: translateX(-50%) scale(1.1); opacity: 1; }
+    75% { transform: translateX(-50%) scale(1); opacity: 1; }
+    100% { transform: translateX(-50%) translateY(-30px) scale(1); opacity: 0; }
   }
   @keyframes swim {
     0%, 100% { transform: translate(-58%, -50%) rotate(-2deg); }
