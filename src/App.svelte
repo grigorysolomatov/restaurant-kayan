@@ -61,12 +61,28 @@
   // "caught!" weight banner
   let showCaught = false;
   let caughtWeight = 0;
+  let caughtExcl = '!';
+
+  // "six-seven" meme overlay
+  let showSixSeven = false;
+
+  // 0–10 kg → "!", 10–50 kg → "!!", heavier → "!!!"
+  function excl(w) { return w <= 10 ? '!' : w <= 50 ? '!!' : '!!!'; }
 
   let inputEl;
 
   function rnd(n) { return Math.floor(Math.random() * n); }
 
   function newProblem() {
+    // 20% chance of a "six-seven" puzzle whose answer is 67
+    if (Math.random() < 0.2) {
+      op = '+';
+      a = rnd(52) + 8;   // 8..59
+      b = 67 - a;        // 8..59
+      answer = 67;
+      input = '';
+      return;
+    }
     const ops = ['+', '-', '×'];
     op = ops[rnd(ops.length)];
     if (op === '+') { a = rnd(12) + 1; b = rnd(12) + 1; answer = a + b; }
@@ -96,6 +112,7 @@
       makeFish();
       armed = true;
       biting = true;
+      if (answer === 67) popSixSeven();
       const big = fishScale > 2.1 ? ' A whopper! 🐟' : '';
       flash(`Correct!${big} Tap fast to reel it in!`, 'ok');
       startFight();
@@ -166,11 +183,12 @@
     biting = false;
     carryFish = { size: fishScale };
     caughtWeight = fishWeight;
+    caughtExcl = excl(fishWeight);
     popCaught();
     fisherState = 'carrying';
     walking = true;
     fishermanX = MARKET_X;
-    flash(`Caught a ${fishWeight} kg fish! Off to market… 🚶`, 'ok');
+    flash('Off to the market… 🚶', 'ok');
     setTimeout(sellAtMarket, 1250);
   }
 
@@ -229,12 +247,18 @@
     setTimeout(() => (showCaught = false), 1400);
   }
 
+  function popSixSeven() {
+    showSixSeven = false;
+    requestAnimationFrame(() => { showSixSeven = true; });
+    setTimeout(() => (showSixSeven = false), 1100);
+  }
+
   function onKey(e) {
     if (e.key === 'Enter') submit();
   }
 
   // ---- preload all art before showing the game ----
-  const ASSETS = ['pond.png', 'shark.png', 'fisherman.png', 'fish-marked.png'];
+  const ASSETS = ['pond.webp', 'shark.webp', 'fisherman.webp', 'fish-marked.webp'];
   let ready = false;
   let loadedCount = 0;
 
@@ -299,7 +323,7 @@
 
     <!-- LEFT: the pond -->
     <div class="pond-area">
-      <img class="pond-img" src="{BASE}assets/pond.png" alt="Pond" />
+      <img class="pond-img" src="{BASE}assets/pond.webp" alt="Pond" />
       {#if !busy}
         <div
           class="shark {armed ? 'armed' : ''} {biting ? 'biting' : ''} {hit ? 'hit' : ''}"
@@ -310,7 +334,7 @@
           tabindex="0"
           aria-label="Tap to reel in the fish"
         >
-          <img src="{BASE}assets/shark.png" alt="Fish" />
+          <img src="{BASE}assets/shark.webp" alt="Fish" />
           {#if armed}<div class="ring"></div>{/if}
         </div>
         {#if armed}
@@ -325,16 +349,16 @@
         {/if}
       {/if}
       {#if showCaught}
-        <div class="caught-banner">🎣 Caught a {caughtWeight} kg fish!</div>
+        <div class="caught-banner">{caughtWeight} KG{caughtExcl}</div>
       {/if}
     </div>
 
     <!-- the fisherman (walks to the market to sell) -->
     <div class="fisher {walking ? 'walking' : ''}" style="left:{fishermanX}px;">
-      <img class="fisher-img" src="{BASE}assets/fisherman.png" alt="Fisherman" />
+      <img class="fisher-img" src="{BASE}assets/fisherman.webp" alt="Fisherman" />
       {#if carryFish}
         <div class="carry" style="width:{80 * Math.min(carryFish.size, 2.4)}px;">
-          <img src="{BASE}assets/shark.png" alt="Caught fish" />
+          <img src="{BASE}assets/shark.webp" alt="Caught fish" />
         </div>
       {/if}
     </div>
@@ -366,7 +390,7 @@
 
     <!-- RIGHT: the market / restaurant -->
     <div class="market">
-      <img class="market-img" src="{BASE}assets/fish-marked.png" alt="Restaurant Kayan" />
+      <img class="market-img" src="{BASE}assets/fish-marked.webp" alt="Restaurant Kayan" />
       <div class="market-basket">🧺</div>
     </div>
 
@@ -379,6 +403,14 @@
         <div class="money-pop">+${popValue}</div>
       {/if}
     </div>
+
+    <!-- six-seven meme overlay -->
+    {#if showSixSeven}
+      <div class="six-seven">
+        <span class="ss-digit six">6</span>
+        <span class="ss-digit seven">7</span>
+      </div>
+    {/if}
   </div>
 </div>
 
@@ -503,6 +535,23 @@
     75% { transform: translateX(-50%) scale(1); opacity: 1; }
     100% { transform: translateX(-50%) translateY(-30px) scale(1); opacity: 0; }
   }
+
+  /* ---------- six-seven meme overlay ---------- */
+  .six-seven {
+    position: absolute; inset: 0; z-index: 150; pointer-events: none;
+    display: flex; align-items: center; justify-content: center; gap: 50px;
+    animation: ssFade 1.1s ease-out forwards;
+  }
+  .ss-digit {
+    font-size: 240px; font-weight: 900; line-height: 1;
+    text-shadow: 0 8px 0 rgba(0, 0, 0, .22), 0 16px 34px rgba(0, 0, 0, .4);
+    -webkit-text-stroke: 6px #fff;
+  }
+  .six { color: #ffb800; animation: ssSix .5s ease-in-out infinite alternate; }
+  .seven { color: #3aa0ff; animation: ssSeven .5s ease-in-out infinite alternate; }
+  @keyframes ssSix { from { transform: translateY(-46px) rotate(-4deg); } to { transform: translateY(46px) rotate(4deg); } }
+  @keyframes ssSeven { from { transform: translateY(46px) rotate(4deg); } to { transform: translateY(-46px) rotate(-4deg); } }
+  @keyframes ssFade { 0% { opacity: 0; } 12% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
   @keyframes swim {
     0%, 100% { transform: translate(-58%, -50%) rotate(-2deg); }
     50% { transform: translate(-38%, -46%) rotate(3deg); }
