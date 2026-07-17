@@ -1,1 +1,4 @@
+node_modules/
+dist/
 z.ignore.dont-use-this/
+*.log

@@ -1,0 +1,25 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  font-family: 'Trebuchet MS', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: #3f7d4e;
+  color: #24402a;
+  touch-action: manipulation;
+}
+
+#app {
+  height: 100%;
+}
+
+img {
+  -webkit-user-drag: none;
+  user-select: none;
+}
