@@ -41,8 +41,10 @@
 
   function submit() {
     if (armed) { flash('Catch your fish first! 🎣', 'ok'); return; }
-    if (input.trim() === '') { flash('Type an answer!', 'bad'); return; }
-    if (parseInt(input, 10) === answer) {
+    // `input` can be a number (type="number" binding) or empty string
+    const raw = String(input ?? '').trim();
+    if (raw === '') { flash('Type an answer!', 'bad'); return; }
+    if (parseInt(raw, 10) === answer) {
       streak += 1;
       flash('Correct! Reel one in! 🎣', 'ok');
       armed = true;
@@ -110,16 +112,50 @@
     if (e.key === 'Enter') submit();
   }
 
+  // ---- preload all art before showing the game ----
+  const ASSETS = ['pond.png', 'shark.png', 'fisherman.png', 'fish-marked.png'];
+  let ready = false;
+  let loadedCount = 0;
+
+  function preload() {
+    return Promise.all(
+      ASSETS.map(
+        (name) =>
+          new Promise((resolve) => {
+            const img = new Image();
+            const done = () => { loadedCount += 1; resolve(); };
+            img.onload = done;
+            img.onerror = done; // never block on a broken asset
+            img.src = BASE + 'assets/' + name;
+          })
+      )
+    );
+  }
+
   onMount(() => {
     fit();
     newProblem();
     window.addEventListener('resize', fit);
+    preload().then(() => { ready = true; focusInput(); });
     return () => window.removeEventListener('resize', fit);
   });
 </script>
 
 <div class="stage">
-  <div class="world" style="width:{WORLD_W}px;height:{WORLD_H}px;transform:translate(-50%,-50%) scale({scale});">
+  {#if !ready}
+    <div class="loading">
+      <div class="spinner">🎣</div>
+      <div class="loading-title">Restaurant Kayan</div>
+      <div class="loading-bar"><span style="width:{(loadedCount / ASSETS.length) * 100}%"></span></div>
+      <div class="loading-sub">Loading the pond…</div>
+    </div>
+  {/if}
+
+  <div
+    class="world"
+    class:hidden={!ready}
+    style="width:{WORLD_W}px;height:{WORLD_H}px;transform:translate(-50%,-50%) scale({scale});"
+  >
 
     <!-- sky & scenery -->
     <div class="sky"></div>
@@ -216,6 +252,35 @@
     left: 50%;
     top: 50%;
     transform-origin: center center;
+  }
+  .world.hidden { visibility: hidden; }
+
+  /* ---------- loading screen ---------- */
+  .loading {
+    position: absolute; inset: 0; z-index: 200;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px; color: #fff; text-align: center;
+  }
+  .spinner {
+    font-size: 64px;
+    animation: cast 1.2s ease-in-out infinite;
+  }
+  .loading-title {
+    font-size: 30px; font-weight: bold; letter-spacing: 1px;
+    text-shadow: 0 3px 0 rgba(0, 0, 0, .18);
+  }
+  .loading-bar {
+    width: 220px; max-width: 60vw; height: 12px; border-radius: 999px;
+    background: rgba(255, 255, 255, .3); overflow: hidden;
+  }
+  .loading-bar span {
+    display: block; height: 100%; background: #ffe27a; border-radius: 999px;
+    transition: width .25s ease;
+  }
+  .loading-sub { font-size: 15px; opacity: .85; }
+  @keyframes cast {
+    0%, 100% { transform: rotate(-12deg) translateY(0); }
+    50% { transform: rotate(12deg) translateY(-6px); }
   }
 
   /* ---------- scenery ---------- */
